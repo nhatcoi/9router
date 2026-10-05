@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createProviderNode, getProviderNodes } from "@/models";
-import { OPENAI_COMPATIBLE_PREFIX, ANTHROPIC_COMPATIBLE_PREFIX, CUSTOM_EMBEDDING_PREFIX, CUSTOM_VIDEO_PREFIX } from "@/shared/constants/providers";
+import { OPENAI_COMPATIBLE_PREFIX, ANTHROPIC_COMPATIBLE_PREFIX, CUSTOM_EMBEDDING_PREFIX, CUSTOM_VIDEO_PREFIX, CUSTOM_IMAGE_PREFIX } from "@/shared/constants/providers";
 import { generateId } from "@/shared/utils";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +20,13 @@ const CUSTOM_EMBEDDING_DEFAULTS = {
 const CUSTOM_VIDEO_DEFAULTS = {
   baseUrl: "https://api.x.ai/v1/videos",
 };
+
+const CUSTOM_IMAGE_DEFAULTS = {
+  baseUrl: "https://api.openai.com/v1",
+};
+
+// Runtime appends /images/generations itself, so baseUrl must stay the API root.
+const IMAGE_ENDPOINT_SUFFIX = /\/images(\/(generations|edits|variations))?$/;
 
 // GET /api/provider-nodes - List all provider nodes
 export async function GET() {
@@ -92,6 +99,24 @@ export async function POST(request) {
       const node = await createProviderNode({
         id: `${CUSTOM_VIDEO_PREFIX}${generateId()}`,
         type: "custom-video",
+        prefix: prefix.trim(),
+        baseUrl: sanitizedBaseUrl,
+        name: name.trim(),
+      });
+      return NextResponse.json({ node }, { status: 201 });
+    }
+
+    if (nodeType === "custom-image") {
+      // Strip trailing slash and a trailing image endpoint if the user pasted the
+      // full URL — baseUrl must be the OpenAI-compatible API root (e.g. .../v1).
+      const sanitizedBaseUrl = (baseUrl || CUSTOM_IMAGE_DEFAULTS.baseUrl)
+        .trim()
+        .replace(/\/$/, "")
+        .replace(IMAGE_ENDPOINT_SUFFIX, "");
+
+      const node = await createProviderNode({
+        id: `${CUSTOM_IMAGE_PREFIX}${generateId()}`,
+        type: "custom-image",
         prefix: prefix.trim(),
         baseUrl: sanitizedBaseUrl,
         name: name.trim(),

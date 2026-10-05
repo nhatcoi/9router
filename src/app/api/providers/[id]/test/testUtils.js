@@ -1,7 +1,7 @@
 import { getProviderConnectionById, updateProviderConnection } from "@/lib/localDb";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { testProxyUrl } from "@/lib/network/proxyTest";
-import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider, isCustomVideoProvider } from "@/shared/constants/providers";
+import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider, isCustomVideoProvider, isCustomImageProvider } from "@/shared/constants/providers";
 import { getDefaultModel } from "open-sse/config/providerModels.js";
 import { resolveOllamaLocalHost, PROVIDERS } from "open-sse/config/providers.js";
 import { CODEX_CLI_VERSION } from "open-sse/config/appConstants.js";
@@ -552,6 +552,34 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
       }, effectiveProxy);
       if (res.status === 401 || res.status === 403) return { valid: false, error: "Invalid API key" };
       if (res.status === 404) return { valid: false, error: "/generations endpoint not found — check Base URL" };
+      if (res.status >= 500) return { valid: false, error: "Server error" };
+      return { valid: true, error: null };
+    } catch (err) {
+      return { valid: false, error: err.message };
+    }
+  }
+
+  if (isCustomImageProvider(connection.provider)) {
+    // OpenAI-compatible image node — probe /models, then fall back to an empty-body
+    // POST /images/generations. 401/403 = bad key; anything else = reachable + authorized.
+    // Mirrors /api/provider-nodes/validate.
+    let base = connection.providerSpecificData?.baseUrl;
+    if (!base) return { valid: false, error: "Missing base URL" };
+    try {
+      base = base.replace(/\/$/, "").replace(/\/images(\/(generations|edits|variations))?$/, "");
+      const modelsRes = await fetchWithConnectionProxy(`${base}/models`, {
+        headers: { "Authorization": `Bearer ${connection.apiKey}` },
+      }, effectiveProxy);
+      if (modelsRes.ok) return { valid: true, error: null };
+      if (modelsRes.status === 401 || modelsRes.status === 403) return { valid: false, error: "Invalid API key" };
+
+      const res = await fetchWithConnectionProxy(`${base}/images/generations`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${connection.apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      }, effectiveProxy);
+      if (res.status === 401 || res.status === 403) return { valid: false, error: "Invalid API key" };
+      if (res.status === 404) return { valid: false, error: "/images/generations endpoint not found — check Base URL" };
       if (res.status >= 500) return { valid: false, error: "Server error" };
       return { valid: true, error: null };
     } catch (err) {

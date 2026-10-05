@@ -3,9 +3,9 @@
 import { useParams, notFound, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { Card, Badge, Button, AddCustomEmbeddingModal, AddCustomVideoModal, NoAuthProxyCard, ProviderInfoCard } from "@/shared/components";
+import { Card, Badge, Button, AddCustomEmbeddingModal, AddCustomVideoModal, AddCustomImageModal, NoAuthProxyCard, ProviderInfoCard } from "@/shared/components";
 import ProviderIcon from "@/shared/components/ProviderIcon";
-import { MEDIA_PROVIDER_KINDS, AI_PROVIDERS, isCustomEmbeddingProvider, isCustomVideoProvider } from "@/shared/constants/providers";
+import { MEDIA_PROVIDER_KINDS, AI_PROVIDERS, isCustomEmbeddingProvider, isCustomVideoProvider, isCustomImageProvider } from "@/shared/constants/providers";
 import ConnectionsCard from "@/app/(dashboard)/dashboard/providers/components/ConnectionsCard";
 import ModelsCard from "@/app/(dashboard)/dashboard/providers/components/ModelsCard";
 import { KIND_EXAMPLE_CONFIG } from "./components/exampleShared";
@@ -21,8 +21,14 @@ export default function MediaProviderDetailPage() {
   const kindConfig = MEDIA_PROVIDER_KINDS.find((k) => k.id === kind);
   const isCustomEmbedding = isCustomEmbeddingProvider(id) && kind === "embedding";
   const isCustomVideo = isCustomVideoProvider(id) && kind === "video";
-  const isCustom = isCustomEmbedding || isCustomVideo;
-  const customLabel = isCustomVideo ? "Custom Video" : "Custom Embedding";
+  const isCustomImage = isCustomImageProvider(id) && kind === "image";
+  const isCustom = isCustomEmbedding || isCustomVideo || isCustomImage;
+  const customDisplay = isCustomVideo
+    ? { label: "Custom Video", color: "#EC4899", textIcon: "CV" }
+    : isCustomImage
+      ? { label: "Custom Image", color: "#F59E0B", textIcon: "CI" }
+      : { label: "Custom Embedding", color: "#6366F1", textIcon: "CE" };
+  const customLabel = customDisplay.label;
 
   const handleDeleteCustom = async () => {
     if (!confirm(`Delete this ${customLabel} node?`)) return;
@@ -58,10 +64,8 @@ export default function MediaProviderDetailPage() {
   const builtInProvider = AI_PROVIDERS[id];
 
   // For custom nodes, build a synthetic provider object
-  const customColor = isCustomVideo ? "#EC4899" : "#6366F1";
-  const customTextIcon = isCustomVideo ? "CV" : "CE";
   const provider = isCustom
-    ? (customNode ? { id, name: customNode.name || customLabel, color: customColor, textIcon: customTextIcon } : null)
+    ? (customNode ? { id, name: customNode.name || customLabel, color: customDisplay.color, textIcon: customDisplay.textIcon } : null)
     : builtInProvider;
 
   if (!isCustom && !builtInProvider) return notFound();
@@ -198,7 +202,13 @@ export default function MediaProviderDetailPage() {
       )}
       {kind === "tts" && <TtsExampleCard providerId={id} />}
       {kind === "stt" && !isCustom && <SttExampleCard providerId={id} />}
-      {!isCustom && KIND_EXAMPLE_CONFIG[kind] && <GenericExampleCard providerId={id} kind={kind} />}
+      {(!isCustom || isCustomImage) && KIND_EXAMPLE_CONFIG[kind] && (
+        <GenericExampleCard
+          providerId={id}
+          kind={kind}
+          providerAliasOverride={isCustom ? customNode?.prefix : undefined}
+        />
+      )}
 
       {isCustomEmbedding && (
         <AddCustomEmbeddingModal
@@ -213,6 +223,17 @@ export default function MediaProviderDetailPage() {
       )}
       {isCustomVideo && (
         <AddCustomVideoModal
+          isOpen={showEditModal}
+          node={customNode}
+          onClose={() => setShowEditModal(false)}
+          onSaved={(updated) => {
+            setCustomNode(updated);
+            setShowEditModal(false);
+          }}
+        />
+      )}
+      {isCustomImage && (
+        <AddCustomImageModal
           isOpen={showEditModal}
           node={customNode}
           onClose={() => setShowEditModal(false)}

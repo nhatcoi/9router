@@ -34,10 +34,11 @@ function toImagePreviewSrc(value) {
   return `data:image/png;base64,${trimmed}`;
 }
 
-export function GenericExampleCard({ providerId, kind }) {
+// providerAliasOverride: custom nodes (e.g. custom-image-*) route by their user-defined prefix
+export function GenericExampleCard({ providerId, kind, providerAliasOverride }) {
   const providerAlias = getProviderAlias(providerId);
   const resolvedId = resolveProviderId(providerAlias);
-  const safeProviderAlias = resolvedId === providerId ? providerAlias : providerId;
+  const safeProviderAlias = providerAliasOverride || (resolvedId === providerId ? providerAlias : providerId);
   const kindConfig = MEDIA_PROVIDER_KINDS.find((k) => k.id === kind);
   const exConfig = KIND_EXAMPLE_CONFIG[kind];
   const safeExConfig = exConfig || {};

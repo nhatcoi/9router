@@ -65,6 +65,12 @@ export async function getModelInfo(modelStr) {
       if (matchedVideo) {
         return { provider: matchedVideo.id, model: parsed.model };
       }
+
+      const imageNodes = await getProviderNodes({ type: "custom-image" });
+      const matchedImage = imageNodes.find((node) => node.prefix === parsed.providerAlias);
+      if (matchedImage) {
+        return { provider: matchedImage.id, model: parsed.model };
+      }
     }
     return {
       provider: parsed.provider,

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getProviderNodeById } from "@/models";
-import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider, isCustomEmbeddingProvider, isCustomVideoProvider, AI_PROVIDERS } from "@/shared/constants/providers";
+import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider, isCustomEmbeddingProvider, isCustomVideoProvider, isCustomImageProvider, AI_PROVIDERS } from "@/shared/constants/providers";
 import { getDefaultModel } from "open-sse/config/providerModels.js";
 import { resolveOllamaLocalHost, resolveXiaomiTokenplanBaseUrl, PROVIDERS } from "open-sse/config/providers.js";
 import { openaiToCommandCodeRequest } from "open-sse/translator/request/openai-to-commandcode.js";
@@ -161,6 +161,38 @@ export async function POST(request) {
           signal: AbortSignal.timeout(8000),
         });
         isValid = res.status !== 401 && res.status !== 403;
+        return NextResponse.json({
+          valid: isValid,
+          error: isValid ? null : "Invalid API key",
+        });
+      }
+
+      // Custom Image nodes: OpenAI-compatible /images/generations. Probe /models first,
+      // then fall back to an empty-body POST — 401/403 = bad key; anything else means the
+      // key is accepted (the missing prompt is rejected before any billable generation).
+      if (isCustomImageProvider(provider)) {
+        const node = await getProviderNodeById(provider);
+        if (!node) {
+          return NextResponse.json({ error: "Custom Image node not found" }, { status: 404 });
+        }
+        const baseUrl = node.baseUrl?.trim().replace(/\/$/, "").replace(/\/images(\/(generations|edits|variations))?$/, "") || "";
+        const modelsRes = await fetch(`${baseUrl}/models`, {
+          headers: { "Authorization": `Bearer ${apiKey}` },
+          signal: AbortSignal.timeout(8000),
+        });
+        if (modelsRes.ok) {
+          return NextResponse.json({ valid: true });
+        }
+        if (modelsRes.status === 401 || modelsRes.status === 403) {
+          return NextResponse.json({ valid: false, error: "Invalid API key" });
+        }
+        const probeRes = await fetch(`${baseUrl}/images/generations`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+          signal: AbortSignal.timeout(8000),
+        });
+        isValid = probeRes.status !== 401 && probeRes.status !== 403;
         return NextResponse.json({
           valid: isValid,
           error: isValid ? null : "Invalid API key",

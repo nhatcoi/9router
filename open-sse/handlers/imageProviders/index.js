@@ -12,6 +12,7 @@ import blackForestLabs from "./blackForestLabs.js";
 import runwayml from "./runwayml.js";
 import cloudflareAi from "./cloudflareAi.js";
 import antigravity from "./antigravity.js";
+import customNode from "./customNode.js";
 
 const ADAPTERS = {
   openai: createOpenAIAdapter("openai"),
@@ -34,10 +35,14 @@ const ADAPTERS = {
   "cloudflare-ai": cloudflareAi,
 };
 
+const CUSTOM_IMAGE_PREFIX = "custom-image-";
+
 export function getImageAdapter(provider) {
-  return ADAPTERS[provider] || null;
+  if (ADAPTERS[provider]) return ADAPTERS[provider];
+  if (provider?.startsWith?.(CUSTOM_IMAGE_PREFIX)) return customNode;
+  return null;
 }
 
 export function isImageProvider(provider) {
-  return provider in ADAPTERS;
+  return provider in ADAPTERS || !!provider?.startsWith?.(CUSTOM_IMAGE_PREFIX);
 }

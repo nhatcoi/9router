@@ -53,6 +53,13 @@ export async function PUT(request, { params }) {
       sanitizedBaseUrl = sanitizedBaseUrl.replace(/\/$/, "").replace(/\/(generations|edits|extensions)$/, "");
     }
 
+    // Sanitize Base URL for Custom Image (strip trailing slash and a trailing image endpoint)
+    if (node.type === "custom-image") {
+      sanitizedBaseUrl = sanitizedBaseUrl
+        .replace(/\/$/, "")
+        .replace(/\/images(\/(generations|edits|variations))?$/, "");
+    }
+
     const updates = {
       name: name.trim(),
       prefix: prefix.trim(),

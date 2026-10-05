@@ -3,7 +3,7 @@
 import { useParams, notFound, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Card, Badge, Button, Toggle, AddCustomEmbeddingModal, AddCustomVideoModal } from "@/shared/components";
+import { Card, Badge, Button, Toggle, AddCustomEmbeddingModal, AddCustomVideoModal, AddCustomImageModal } from "@/shared/components";
 import ProviderIcon from "@/shared/components/ProviderIcon";
 import { MEDIA_PROVIDER_KINDS, AI_PROVIDERS, getProvidersByKind } from "@/shared/constants/providers";
 
@@ -16,6 +16,7 @@ const COMBO_BASE_NAMES = { image: "image-combo", tts: "tts-combo" };
 const CUSTOM_NODE_CONFIG = {
   embedding: { nodeType: "custom-embedding", addLabel: "Add Custom Embedding", cardName: "Custom Embedding", color: "#6366F1", textIcon: "CE" },
   video:     { nodeType: "custom-video",     addLabel: "Add Custom Video",     cardName: "Custom Video",     color: "#EC4899", textIcon: "CV" },
+  image:     { nodeType: "custom-image",     addLabel: "Add Custom Image",     cardName: "Custom Image",     color: "#F59E0B", textIcon: "CI" },
 };
 
 function getEffectiveStatus(conn) {
@@ -292,6 +293,16 @@ export default function MediaProviderKindPage() {
       )}
       {kind === "video" && (
         <AddCustomVideoModal
+          isOpen={showAddCustom}
+          onClose={() => setShowAddCustom(false)}
+          onCreated={(node) => {
+            setCustomNodes((prev) => [...prev, node]);
+            setShowAddCustom(false);
+          }}
+        />
+      )}
+      {kind === "image" && (
+        <AddCustomImageModal
           isOpen={showAddCustom}
           onClose={() => setShowAddCustom(false)}
           onCreated={(node) => {

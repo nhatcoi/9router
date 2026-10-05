@@ -7,7 +7,7 @@ import {
   getProxyPoolById,
 } from "@/models";
 import { APIKEY_PROVIDERS } from "@/shared/constants/config";
-import { AI_PROVIDERS, FREE_TIER_PROVIDERS, WEB_COOKIE_PROVIDERS, isOpenAICompatibleProvider, isAnthropicCompatibleProvider, isCustomEmbeddingProvider, isCustomVideoProvider } from "@/shared/constants/providers";
+import { AI_PROVIDERS, FREE_TIER_PROVIDERS, WEB_COOKIE_PROVIDERS, isOpenAICompatibleProvider, isAnthropicCompatibleProvider, isCustomEmbeddingProvider, isCustomVideoProvider, isCustomImageProvider } from "@/shared/constants/providers";
 import { normalizeProviderId, normalizeProviderSpecificData } from "@/lib/providerNormalization";
 
 export const dynamic = "force-dynamic";
@@ -112,7 +112,8 @@ export async function POST(request) {
       isOpenAICompatibleProvider(provider) ||
       isAnthropicCompatibleProvider(provider) ||
       isCustomEmbeddingProvider(provider) ||
-      isCustomVideoProvider(provider);
+      isCustomVideoProvider(provider) ||
+      isCustomImageProvider(provider);
 
     if (!provider || !isValidProvider) {
       return NextResponse.json({ error: "Invalid provider" }, { status: 400 });
@@ -164,6 +165,16 @@ export async function POST(request) {
       const node = await getProviderNodeById(provider);
       if (!node) {
         return NextResponse.json({ error: "Custom Video node not found" }, { status: 404 });
+      }
+      providerSpecificData = {
+        prefix: node.prefix,
+        baseUrl: node.baseUrl,
+        nodeName: node.name,
+      };
+    } else if (isCustomImageProvider(provider)) {
+      const node = await getProviderNodeById(provider);
+      if (!node) {
+        return NextResponse.json({ error: "Custom Image node not found" }, { status: 404 });
       }
       providerSpecificData = {
         prefix: node.prefix,

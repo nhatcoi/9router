@@ -133,6 +133,46 @@ export async function POST(request) {
       return NextResponse.json({ valid: true, method: "generations-probe" });
     }
 
+    // Custom Image Validation — OpenAI-compatible /images/generations.
+    // A real generation is billable, so probe /models first and fall back to an
+    // empty-body POST: 401/403 means the key is bad; any other status (400/422 for
+    // the missing prompt) means the endpoint is reachable and the key is authorized.
+    if (type === "custom-image") {
+      const normalizedBase = baseUrl
+        .trim()
+        .replace(/\/$/, "")
+        .replace(/\/images(\/(generations|edits|variations))?$/, "");
+
+      const modelsRes = await fetchWithTimeout(`${normalizedBase}/models`, {
+        headers: { "Authorization": `Bearer ${apiKey}` }
+      });
+      if (modelsRes.ok) {
+        return NextResponse.json({ valid: true, method: "models" });
+      }
+      if (modelsRes.status === 401 || modelsRes.status === 403) {
+        return NextResponse.json({ valid: false, error: "API key unauthorized" });
+      }
+
+      const probeRes = await fetchWithTimeout(`${normalizedBase}/images/generations`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({})
+      });
+      if (probeRes.status === 401 || probeRes.status === 403) {
+        return NextResponse.json({ valid: false, error: "API key unauthorized" });
+      }
+      if (probeRes.status === 404) {
+        return NextResponse.json({ valid: false, error: "/images/generations endpoint not found - check Base URL" });
+      }
+      if (probeRes.status >= 500) {
+        return NextResponse.json({ valid: false, error: "Server error - try again later" });
+      }
+      return NextResponse.json({ valid: true, method: "images-probe" });
+    }
+
     // Anthropic Compatible Validation
     if (type === "anthropic-compatible") {
       let normalizedBase = baseUrl.trim().replace(/\/$/, "");

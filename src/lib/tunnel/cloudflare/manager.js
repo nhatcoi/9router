@@ -4,6 +4,7 @@ import { clearPid } from "./pid.js";
 import { waitForHealth, probeUrlAlive } from "./healthCheck.js";
 import { WORKER_URL } from "./config.js";
 import { getSettings, updateSettings } from "@/lib/localDb";
+import { UPDATER_CONFIG } from "@/shared/constants/config";
 
 const svc = {
   cancelToken: { cancelled: false },
@@ -31,7 +32,7 @@ function throwIfCancelled(token) {
   if (token.cancelled) throw new Error("tunnel cancelled");
 }
 
-export async function enableTunnel(localPort = 20128) {
+export async function enableTunnel(localPort = process.env.PORT || UPDATER_CONFIG.appPort) {
   console.log(`[Tunnel] enable start (port=${localPort})`);
   svc.cancelToken = { cancelled: false };
   svc.activeLocalPort = localPort;
