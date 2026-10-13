@@ -1,8 +1,9 @@
 import { getProviderConnectionById, updateProviderConnection } from "@/lib/localDb";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { testProxyUrl } from "@/lib/network/proxyTest";
-import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider, isCustomVideoProvider, isCustomImageProvider } from "@/shared/constants/providers";
+import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider, isCustomVideoProvider, isCustomImageProvider, AI_PROVIDERS } from "@/shared/constants/providers";
 import { getDefaultModel } from "open-sse/config/providerModels.js";
+import { probeBedrockCredentials } from "open-sse/executors/bedrock.js";
 import { resolveOllamaLocalHost, PROVIDERS } from "open-sse/config/providers.js";
 import { CODEX_CLI_VERSION } from "open-sse/config/appConstants.js";
 import { GROK_CLI_PAGER_USER_AGENT, GROK_CLI_VERSION } from "open-sse/config/grokCli.js";
@@ -582,6 +583,19 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
       if (res.status === 404) return { valid: false, error: "/images/generations endpoint not found — check Base URL" };
       if (res.status >= 500) return { valid: false, error: "Server error" };
       return { valid: true, error: null };
+    } catch (err) {
+      return { valid: false, error: err.message };
+    }
+  }
+
+  // AWS-signed providers (Bedrock): without this every Test ends in the switch's default,
+  // "Provider test not supported", and marks a working connection as errored.
+  if (AI_PROVIDERS[connection.provider]?.credentialForm === "aws") {
+    try {
+      return await probeBedrockCredentials(
+        connection,
+        (url, options) => fetchWithConnectionProxy(url, options, effectiveProxy),
+      );
     } catch (err) {
       return { valid: false, error: err.message };
     }
