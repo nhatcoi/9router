@@ -28,6 +28,7 @@ function getDataDir() {
 
 const DATA_DIR = getDataDir();
 const MITM_DIR = path.join(DATA_DIR, "mitm");
+try { fs.mkdirSync(MITM_DIR, { recursive: true }); } catch {}
 
 fs.mkdirSync(MITM_DIR, { recursive: true });
 
