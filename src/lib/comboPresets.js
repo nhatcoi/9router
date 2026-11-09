@@ -15,8 +15,8 @@ const CLAUDE_ALIAS = "cc";
 
 /** Extra Claude Code aliases not listed in defaultModels. */
 const CLAUDE_EXTRA_ALIAS_TARGETS = {
-  default: "cc/claude-sonnet-5",
-  opusplan: "cc/claude-opus-5",
+  default: "cc/claude-sonnet-5-5",
+  opusplan: "cc/claude-opus-5-5",
 };
 
 /**

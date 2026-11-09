@@ -27,6 +27,8 @@ import { updateProviderCredentials, checkAndRefreshToken } from "../services/tok
 import { getProjectIdForConnection } from "open-sse/services/projectId.js";
 import { stripModelContextMarker } from "open-sse/utils/modelMarkers.js";
 import { getKeyAccessContext, enforceKeyAccess, filterAdapterModels } from "../services/keyAccess.js";
+import { enforceKeyQuota } from "../services/keyQuota.js";
+import { getPlanBlockedConnections } from "../services/keyPlanShare.js";
 import { resolveSmartChoice } from "../services/systemoneRouter.js";
 
 /**
@@ -98,6 +100,10 @@ export async function handleChat(request, clientRawRequest = null) {
   const keyAccess = await getKeyAccessContext(request);
   const keyAccessDenied = await enforceKeyAccess(keyAccess, modelStr);
   if (keyAccessDenied) return keyAccessDenied;
+
+  // Per-key token limits (5h / day / week / month windows) -> 429 when exhausted.
+  const keyQuotaDenied = await enforceKeyQuota(request);
+  if (keyQuotaDenied) return keyQuotaDenied;
 
   // Bypass naming/warmup requests before combo rotation to avoid wasting rotation slots
   const userAgent = request?.headers?.get("user-agent") || "";
@@ -272,6 +278,10 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
 
   // Try with available accounts (fallback on errors)
   const excludeConnectionIds = new Set();
+  // Key's share of the provider plan (e.g. 50% of Claude 5h/weekly): accounts where it is
+  // used up are skipped for this key; the usual account fallback picks the next one.
+  const planBlock = await getPlanBlockedConnections(apiKey, provider);
+  for (const id of planBlock.blocked) excludeConnectionIds.add(id);
   let lastError = null;
   let lastStatus = null;
   let lastHeaders = null;
@@ -286,6 +296,9 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
         const status = HTTP_STATUS.SERVICE_UNAVAILABLE;
         log.warn("CHAT", `[${provider}/${model}] ${errorMsg} (${credentials.retryAfterHuman})`);
         return unavailableResponse(status, `[${provider}/${model}] ${errorMsg}`, credentials.retryAfter, credentials.retryAfterHuman, lastHeaders);
+      }
+      if (planBlock.blocked.size > 0 && excludeConnectionIds.size === planBlock.blocked.size && !lastError) {
+        return errorResponse(HTTP_STATUS.RATE_LIMITED, `API key plan share reached on every ${provider} account (${planBlock.details.join("; ")})`);
       }
       if (excludeConnectionIds.size === 0) {
         log.warn("AUTH", `No active credentials for provider: ${provider}`);

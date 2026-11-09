@@ -3,6 +3,7 @@ import { getSettings, updateSettings } from "@/lib/localDb";
 import { applyOutboundProxyEnv } from "@/lib/network/outboundProxy";
 import { resetComboRotation } from "open-sse/services/combo.js";
 import bcrypt from "bcryptjs";
+import { validateKeyLimitPools } from "@/shared/utils/keyLimits.js";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -41,6 +42,12 @@ export async function PATCH(request) {
 
     // Strip protected secrets before any internal handling sets them
     for (const key of PROTECTED_SETTING_KEYS) delete body[key];
+
+    if (body.keyLimitPools !== undefined) {
+      const checked = validateKeyLimitPools(body.keyLimitPools);
+      if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: 400 });
+      body.keyLimitPools = checked.value;
+    }
 
     // If updating password, hash it
     if (body.newPassword) {

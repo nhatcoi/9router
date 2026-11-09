@@ -19,6 +19,8 @@ import StatusAlert from "./components/StatusAlert";
 import Tooltip from "./components/Tooltip";
 import SecurityWarning from "./components/SecurityWarning";
 import KeyAccessControls from "./components/KeyAccessControls";
+import KeyLimitControls from "./components/KeyLimitControls";
+import KeyLimitPools from "./components/KeyLimitPools";
 export default function APIPageClient({ machineId }) {
   const [keys, setKeys] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -694,6 +696,45 @@ export default function APIPageClient({ machineId }) {
     }
   };
 
+  const [keyLimitPools, setKeyLimitPools] = useState({});
+  useEffect(() => {
+    fetch("/api/settings").then((r) => (r.ok ? r.json() : null)).then((d) => d && setKeyLimitPools(d.keyLimitPools || {})).catch(() => {});
+  }, []);
+
+  // Returns an error string, or "" on success (shown inline by the control).
+  const handleSaveKeyLimits = async (id, limits) => {
+    try {
+      const res = await fetch(`/api/keys/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ limits }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.key) {
+        setKeys(prev => prev.map(k => k.id === id ? { ...k, limits: data.key.limits } : k));
+        return "";
+      }
+      return data.error || `Failed (${res.status})`;
+    } catch (error) {
+      return "Failed to save limits";
+    }
+  };
+
+  const handleSaveKeyLimitPools = async (pools) => {
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keyLimitPools: pools }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) { setKeyLimitPools(data.keyLimitPools || {}); return ""; }
+      return data.error || `Failed (${res.status})`;
+    } catch (error) {
+      return "Failed to save pools";
+    }
+  };
+
   const maskKey = (fullKey) => {
     if (!fullKey || fullKey.length <= 10) return fullKey || "";
     return fullKey.slice(0, 6) + "•".repeat(fullKey.length - 10) + fullKey.slice(-4);
@@ -1019,6 +1060,7 @@ export default function APIPageClient({ machineId }) {
           </div>
         ) : (
           <div className="flex flex-col">
+            <KeyLimitPools pools={keyLimitPools} onSave={handleSaveKeyLimitPools} />
             {keys.map((key) => (
               <div
                 key={key.id}
@@ -1056,6 +1098,11 @@ export default function APIPageClient({ machineId }) {
                   {key.isActive === false && (
                     <p className="text-xs text-orange-500 mt-1">Paused</p>
                   )}
+                  <KeyLimitControls
+                    apiKey={key}
+                    pools={keyLimitPools}
+                    onSave={(limits) => handleSaveKeyLimits(key.id, limits)}
+                  />
                   <KeyAccessControls
                     apiKey={key}
                     onChange={(access) => handleUpdateKeyAccess(key.id, access)}

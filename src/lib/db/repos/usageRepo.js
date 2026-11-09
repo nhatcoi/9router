@@ -813,3 +813,36 @@ export async function getRecentLogs(limit = 200) {
     return [];
   }
 }
+
+/**
+ * Total tokens (prompt + completion) one API key consumed since `sinceIso`.
+ * Reads usageHistory (indexed on apiKey, timestamp); ISO timestamps compare
+ * lexicographically. Usage is recorded when a request finishes, so a limit is
+ * enforced against completed requests (in-flight ones can overshoot slightly).
+ */
+export async function getKeyTokensSince(apiKey, sinceIso) {
+  if (!apiKey) return 0;
+  const db = await getAdapter();
+  const row = db.get(
+    `SELECT COALESCE(SUM(promptTokens + completionTokens), 0) AS total FROM usageHistory WHERE apiKey = ? AND timestamp >= ?`,
+    [apiKey, sinceIso]
+  );
+  return Number(row?.total) || 0;
+}
+
+/**
+ * Tokens through one provider connection since `sinceIso`: everyone's total and
+ * one API key's part. Basis for a key's share of a provider plan window.
+ */
+export async function getConnectionTokenSplit(connectionId, apiKey, sinceIso, modelLikePatterns = null) {
+  const db = await getAdapter();
+  const patterns = Array.isArray(modelLikePatterns) && modelLikePatterns.length ? modelLikePatterns : null;
+  const modelSql = patterns ? ` AND (${patterns.map(() => "LOWER(model) LIKE ?").join(" OR ")})` : "";
+  const row = db.get(
+    `SELECT COALESCE(SUM(promptTokens + completionTokens), 0) AS allTokens,
+            COALESCE(SUM(CASE WHEN apiKey = ? THEN promptTokens + completionTokens ELSE 0 END), 0) AS keyTokens
+       FROM usageHistory WHERE connectionId = ? AND timestamp >= ?${modelSql}`,
+    [apiKey || "", connectionId, sinceIso, ...(patterns || [])]
+  );
+  return { all: Number(row?.allTokens) || 0, key: Number(row?.keyTokens) || 0 };
+}
